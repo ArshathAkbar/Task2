@@ -1,0 +1,80 @@
+import pandas as pd
+from elasticsearch import Elasticsearch, ConnectionError
+# Connect to Elasticsearch with error handling
+try:
+    es = Elasticsearch(
+        ['https://localhost:9200'],
+        basic_auth=('elastic', '_1-w-Lz9t_tqdf8Y+xjC'),  # Use your username and password
+        verify_certs=False  # Set to False for unverified certificate
+    )
+    if not es.ping():
+        raise ValueError("Connection failed")
+except ConnectionError as e:
+    print("Error connecting to Elasticsearch:", e)
+    exit(1)
+# Function to create a collection (index)
+def createCollection(p_collection_name):
+    es.indices.create(index=p_collection_name.lower(), ignore=400)
+# Function to index data
+def indexData(p_collection_name, p_exclude_column):
+    df = pd.read_csv(r'D:\21CS042\Employee Sample Data 1.csv', encoding='ISO-8859-1')
+    # Replace NaN values with an empty string
+    df.fillna(value='', inplace=True)
+    for _, row in df.iterrows():
+        doc = row.to_dict()
+        if p_exclude_column in doc:
+            doc.pop(p_exclude_column)
+        es.index(index=p_collection_name.lower(), document=doc)
+
+# Function to search by column
+def searchByColumn(p_collection_name, p_column_name, p_column_value):
+    query = {
+        "query": {
+            "match": {
+                p_column_name: p_column_value
+            }
+        }
+    }
+    response = es.search(index=p_collection_name.lower(), body=query)
+    return respons
+# Function to get employee count
+def getEmpCount(p_collection_name):
+    return es.count(index=p_collection_name.lower())['count']
+# Function to delete employee by ID
+def delEmpById(p_collection_name, p_employee_id):
+    es.delete(index=p_collection_name.lower(), id=p_employee_id, ignore=[404])
+# Function to get department facets
+def getDepFacet(p_collection_name):
+    query = {
+        "size": 0,
+        "aggs": {
+            "departments": {
+                "terms": {
+                    "field": "Department.keyword"
+                }
+            }
+        }
+    }
+    response = es.search(index=p_collection_name.lower(), body=query)
+    return response
+
+# Execution order
+v_nameCollection = 'hash_anthony_ho'    # Replace with your name in lowercase
+v_phoneCollection = 'hash_5678'          # Replace with your phone's last four digits
+createCollection(v_nameCollection)
+createCollection(v_phoneCollection)
+# Index data excluding 'Department' and 'Gender' columns respectively
+indexData(v_nameCollection, 'Department')
+indexData(v_phoneCollection, 'Gender')
+# Employee count before deletion
+print("Employee count in {}: {}".format(v_nameCollection, getEmpCount(v_nameCollection)))
+# Delete an employee by ID
+delEmpById(v_nameCollection, 'E02003')
+print("Employee count in {} after deletion: {}".format(v_nameCollection, getEmpCount(v_nameCollection)))
+# Search examples
+print("Search result for Department='IT' in {}: {}".format(v_nameCollection, searchByColumn(v_nameCollection, 'Department', 'IT')))
+print("Search result for Gender='Male' in {}: {}".format(v_nameCollection, searchByColumn(v_nameCollection, 'Gender', 'Male')))
+print("Search result for Department='IT' in {}: {}".format(v_phoneCollection, searchByColumn(v_phoneCollection, 'Department', 'IT'))))
+# Department facets
+print("Department facet for {}: {}".format(v_nameCollection, getDepFacet(v_nameCollection)))
+print("Department facet for {}: {}".format(v_phoneCollection, getDepFacet(v_phoneCollection)))
